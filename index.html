@@ -32,7 +32,7 @@ const W=360,H=640,TOP=40,PY=596,PH=10,R=5,DT=1/240,MAXA=1.0,TAU=Math.PI*2,GS=30,
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const lerp=(a,b,t)=>a+(b-a)*t;
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-let rnd=mulberry(20261027);          // gameplay RNG (seedable for soak tests)
+let rnd=mulberry((Date.now()^Math.floor(Math.random()*4294967296))>>>0);          // gameplay RNG (seedable for soak tests)
 let FX=true;                          // visual effects on (off in headless fast-forward)
 function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
 
@@ -72,7 +72,7 @@ const ROMAN=['','','II','III','IV','V','VI','VII','VIII','IX','X'];
 function palFn(p,nrows){return r=>lerp(p[0],p[1],nrows>1?r/(nrows-1):0)}
 function ballSpeed(n){return Math.min(450,400+4*(n-1))}
 
-function D(n,o){o.n=n;o.spd=ballSpeed(n);o.tags=o.tags||[];return o}
+function D(n,o){o.n=n;{const hs=(Math.random()-0.5)*50;if(typeof o.hue==='function'){const f=o.hue;o.hue=r=>(f(r)+hs+360)%360}else if(typeof o.hue==='number')o.hue=(o.hue+hs+360)%360}o.spd=ballSpeed(n);o.tags=o.tags||[];return o}
 function designed(n){
  switch(n){
  case 1:return D(1,{name:'ウォームアップ',rows:Array(5).fill("###########"),y0:Y0});
@@ -258,7 +258,8 @@ function simHit(c,dmg,fire){const S=SIM,id=c.id;
  if(S.hp[id]<=0){S.dead[id]=S.stamp;S.score+=bvalue(c)}else S.score+=bvalue(c)*0.5;
 }
 function fixAngle(b){const m=0.2*b.sp;
- if(Math.abs(b.vy)<m){const sy=b.vy<0?-1:(b.vy>0?1:-1),sx=b.vx<0?-1:1;b.vy=sy*m;b.vx=sx*Math.sqrt(Math.max(1,b.sp*b.sp-m*m))}}
+ if(Math.abs(b.vy)<m){const sy=b.vy<0?-1:(b.vy>0?1:-1),sx=b.vx<0?-1:1;b.vy=sy*m;b.vx=sx*Math.sqrt(Math.max(1,b.sp*b.sp-m*m))}
+ const mx=0.08*b.sp;if(b.sp>0&&Math.abs(b.vx)<mx){const sx2=b.vx<0?-1:(b.vx>0?1:(Math.random()<0.5?-1:1)),sy2=b.vy<0?-1:1;b.vx=sx2*mx;b.vy=sy2*Math.sqrt(Math.max(1,b.sp*b.sp-mx*mx))}}
 
 function stepBall(b,tt,sim){
  const S=sim?SIM:null;
@@ -266,6 +267,7 @@ function stepBall(b,tt,sim){
   for(let i=0;i<wells.length;i++){const w=wells[i],dx=w.x-b.x,dy=w.y-b.y,d2=dx*dx+dy*dy;
    if(d2<w.R2&&d2>36){const d=Math.sqrt(d2),f=w.s*(1-d/w.R)*DT/d;b.vx+=dx*f;b.vy+=dy*f;act=true}}
   if(act){const k=b.sp/Math.hypot(b.vx,b.vy);b.vx*=k;b.vy*=k;if(Math.abs(b.vy)<0.2*b.sp)fixAngle(b)}}
+ if(b.sp>0&&(Math.abs(b.vy)<0.2*b.sp||Math.abs(b.vx)<0.08*b.sp))fixAngle(b);
  b.x+=b.vx*DT;b.y+=b.vy*DT;
  let hit=false;
  if(b.x<R){b.x=R;if(b.vx<0){b.vx=-b.vx;hit=true}}else if(b.x>W-R){b.x=W-R;if(b.vx>0){b.vx=-b.vx;hit=true}}
@@ -346,14 +348,14 @@ function paddleHit(b){
  const u=clamp((b.x-paddle.x)/paddle.hw,-1,1);b.y=PY-R;G.combo=0;b.pc=0;
  if(G.pw.sticky>0&&G.state==='play'){b.stuck=true;b.off=clamp(b.x-paddle.x,-paddle.hw+4,paddle.hw-4);b.wait=0.55+rnd()*0.7;b.vx=b.vy=0;b.ver++;
   if(FX){sfx('paddle');burst(b.x,b.y,100,5,60,0.3)}paddle.flash=1;return}
- const a=u*MAXA+(rnd()-0.5)*0.03;b.vx=b.sp*Math.sin(a);b.vy=-b.sp*Math.cos(a);b.ver++;paddle.flash=1;
+ const a=clamp(u+(Math.random()-0.5)*0.24,-1,1)*MAXA+(Math.random()-0.5)*0.08;b.vx=b.sp*Math.sin(a);b.vy=-b.sp*Math.cos(a);fixAngle(b);b.ver++;paddle.flash=1;
  if(FX){sfx('paddle');burst(b.x,PY,200,4,70,0.25)}
 }
 function launchBall(b){
- const u=chooseU(b.x,G.tt,b.sp,b.fire,true);const a=u*MAXA;b.stuck=false;b.vx=b.sp*Math.sin(a);b.vy=-b.sp*Math.cos(a);b.y=PY-R-1;b.ver++;b.spawn=0;
+ const u=chooseU(b.x,G.tt,b.sp,b.fire,true);const a=clamp(u+(Math.random()-0.5)*0.5,-0.95,0.95)*MAXA;b.stuck=false;b.vx=b.sp*Math.sin(a);b.vy=-b.sp*Math.cos(a);b.y=PY-R-1;fixAngle(b);if(Math.abs(b.vx)<0.12*b.sp){b.vx=(Math.random()<0.5?-1:1)*0.12*b.sp;b.vy=-Math.sqrt(b.sp*b.sp-b.vx*b.vx)}b.ver++;b.spawn=0;
  if(FX)sfx('launch');
 }
-function serve(delay){balls=[];const b=newBall(paddle.x,PY-R,0,0);b.stuck=true;b.off=0;b.wait=delay;balls.push(b)}
+function serve(delay){balls=[];const b=newBall(paddle.x,PY-R,0,0);b.stuck=true;b.off=(Math.random()-0.5)*20;b.wait=delay*(0.8+Math.random()*0.5);balls.push(b)}
 
 /* ---------- bricks ---------- */
 const BASE={n:10,a:20,x:30,core:200,s:0};
@@ -542,7 +544,7 @@ function updateFx(dt){
 }
 /* ================= AI paddle ================= */
 const VMAX=780,ACC=7000;
-const AI={lastU:0,plan:null,tx:W/2,cur:null,sweepT:0,sweepX:W/2,rng:mulberry(777)};
+const AI={lastU:0,plan:null,tx:W/2,cur:null,sweepT:0,sweepX:W/2,rng:mulberry((Math.random()*4294967296)>>>0)};
 const arnd=()=>AI.rng();
 function chooseU(x,t0,sp,fire,launch){
  const us=[-0.9,-0.6,-0.3,0,0.3,0.6,0.9];
